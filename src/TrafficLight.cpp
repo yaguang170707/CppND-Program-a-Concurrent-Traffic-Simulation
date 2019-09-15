@@ -12,12 +12,11 @@ T MessageQueue<T>::receive()
     // The received object should then be returned by the receive function. 
     std::unique_lock<std::mutex> uLock(_mutex);
     _cond.wait(uLock, [this] { return !_messages.empty(); }); // pass unique lock to condition variable
-
-    // remove last vector element from queue
-    T msg = std::move(_messages.back());
-    _messages.pop_back();
-
-    return msg; // will not be copied due to return value optimization (RVO) in C++
+    
+    //pop from the front to implement the FIFO concept more appropriately
+    T msg = std::move(_messages.front());
+    _messages.pop_front();
+    return msg; 
 }
 
 template <typename T>
@@ -47,8 +46,10 @@ void TrafficLight::waitForGreen()
     // Once it receives TrafficLightPhase::green, the method returns.
     while(true)
     {
-        //std::cout << (_queue->receive() == TrafficLightPhase::green) << std::endl;
-        if (_queue->receive() == TrafficLightPhase::green) return;
+        if (_queue.receive() == TrafficLightPhase::green) 
+        {
+            return;
+        }
     }
 }
 
@@ -60,7 +61,7 @@ TrafficLightPhase TrafficLight::getCurrentPhase()
 void TrafficLight::simulate()
 {
     // FP.2b : Finally, the private method „cycleThroughPhases“ should be started in a thread when the public method „simulate“ is called. To do this, use the thread queue in the base class. 
-    threads.emplace_back(&TrafficLight::cycleThroughPhases, this);
+    threads.emplace_back(std::thread(&TrafficLight::cycleThroughPhases, this));
 }
 
 // virtual function which is executed in a thread
@@ -77,12 +78,14 @@ void TrafficLight::cycleThroughPhases()
     std::mt19937 eng(rd());
     std::uniform_int_distribution<> distr(4000, 6000);
 
+    int cycleDuration;
+
     while(true)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
         long timeSinceLastUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - lastUpdate).count();
 
-        int cycleDuration = distr(eng);
+        cycleDuration = distr(eng);
 
         if (timeSinceLastUpdate >= cycleDuration)
         {
@@ -90,7 +93,7 @@ void TrafficLight::cycleThroughPhases()
             //change traffic light
             _currentPhase = (_currentPhase == TrafficLightPhase::red? TrafficLightPhase::green: TrafficLightPhase::red);
 
-            _queue->send(std::move(_currentPhase));
+            _queue.send(std::move(_currentPhase));
         }
     }
 }

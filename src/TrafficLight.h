@@ -60,7 +60,7 @@ private:
 
     std::condition_variable _condition;
     std::mutex _mutex;
-    std::shared_ptr<MessageQueue<TrafficLightPhase>> _queue {new MessageQueue<TrafficLightPhase>};
+    MessageQueue<TrafficLightPhase> _queue;
 };
 
 #endif
